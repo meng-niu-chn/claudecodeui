@@ -10,6 +10,7 @@ import CodexLogo from './CodexLogo';
 import CredentialsSettings from './CredentialsSettings';
 import GitSettings from './GitSettings';
 import TasksSettings from './TasksSettings';
+import ClaudeProxySettings from './ClaudeProxySettings';
 import LoginModal from './LoginModal';
 import { authenticatedFetch } from '../utils/api';
 
@@ -1016,6 +1017,17 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
               >
                 Tasks
               </button>
+              <button
+                onClick={() => setActiveTab('claude-proxy')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'claude-proxy'
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Server className="w-4 h-4 inline mr-2" />
+                Claude Proxy
+              </button>
             </div>
           </div>
 
@@ -1899,6 +1911,13 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }) {
             {activeTab === 'api' && (
               <div className="space-y-6 md:space-y-8">
                 <CredentialsSettings />
+              </div>
+            )}
+
+            {/* Claude Proxy Tab */}
+            {activeTab === 'claude-proxy' && (
+              <div className="space-y-6 md:space-y-8">
+                <ClaudeProxySettings />
               </div>
             )}
           </div>
