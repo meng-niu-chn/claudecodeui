@@ -18,7 +18,7 @@
  * Handles both existing sessions (with real IDs) and new sessions (with temporary IDs).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { Settings as SettingsIcon, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
@@ -36,6 +36,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { useVersionCheck } from './hooks/useVersionCheck';
 import useLocalStorage from './hooks/useLocalStorage';
 import { api, authenticatedFetch } from './utils/api';
+import { I18nextProvider } from 'react-i18next';
+import i18n from './i18n/config.js';
 
 
 // Main App component with routing
@@ -53,6 +55,7 @@ function AppContent() {
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(null); // { phase, current, total, currentProject }
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState('agents');
@@ -78,7 +81,10 @@ function AppContent() {
   const [externalMessageUpdate, setExternalMessageUpdate] = useState(0);
 
   const { ws, sendMessage, messages } = useWebSocketContext();
-  
+
+  // Ref to track loading progress timeout for cleanup
+  const loadingProgressTimeoutRef = useRef(null);
+
   // Detect if running as PWA
   const [isPWA, setIsPWA] = useState(false);
   
@@ -170,7 +176,23 @@ function AppContent() {
   useEffect(() => {
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1];
-      
+
+      // Handle loading progress updates
+      if (latestMessage.type === 'loading_progress') {
+        if (loadingProgressTimeoutRef.current) {
+          clearTimeout(loadingProgressTimeoutRef.current);
+          loadingProgressTimeoutRef.current = null;
+        }
+        setLoadingProgress(latestMessage);
+        if (latestMessage.phase === 'complete') {
+          loadingProgressTimeoutRef.current = setTimeout(() => {
+            setLoadingProgress(null);
+            loadingProgressTimeoutRef.current = null;
+          }, 500);
+        }
+        return;
+      }
+
       if (latestMessage.type === 'projects_updated') {
 
         // External Session Update Detection: Check if the changed file is the current session's JSONL
@@ -247,6 +269,13 @@ function AppContent() {
         }
       }
     }
+
+    return () => {
+      if (loadingProgressTimeoutRef.current) {
+        clearTimeout(loadingProgressTimeoutRef.current);
+        loadingProgressTimeoutRef.current = null;
+      }
+    };
   }, [messages, selectedProject, selectedSession, activeSessions]);
 
   const fetchProjects = async () => {
@@ -765,6 +794,7 @@ function AppContent() {
                 onSessionDelete={handleSessionDelete}
                 onProjectDelete={handleProjectDelete}
                 isLoading={isLoadingProjects}
+                loadingProgress={loadingProgress}
                 onRefresh={handleSidebarRefresh}
                 onShowSettings={() => setShowSettings(true)}
                 updateAvailable={updateAvailable}
@@ -859,6 +889,7 @@ function AppContent() {
               onSessionDelete={handleSessionDelete}
               onProjectDelete={handleProjectDelete}
               isLoading={isLoadingProjects}
+              loadingProgress={loadingProgress}
               onRefresh={handleSidebarRefresh}
               onShowSettings={() => setShowSettings(true)}
               updateAvailable={updateAvailable}
@@ -950,24 +981,26 @@ function AppContent() {
 // Root App component with router
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <WebSocketProvider>
-          <TasksSettingsProvider>
-            <TaskMasterProvider>
-              <ProtectedRoute>
-                <Router>
-                  <Routes>
-                    <Route path="/" element={<AppContent />} />
-                    <Route path="/session/:sessionId" element={<AppContent />} />
-                  </Routes>
-                </Router>
-              </ProtectedRoute>
-            </TaskMasterProvider>
-          </TasksSettingsProvider>
-        </WebSocketProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <I18nextProvider i18n={i18n}>
+      <ThemeProvider>
+        <AuthProvider>
+          <WebSocketProvider>
+            <TasksSettingsProvider>
+              <TaskMasterProvider>
+                <ProtectedRoute>
+                  <Router>
+                    <Routes>
+                      <Route path="/" element={<AppContent />} />
+                      <Route path="/session/:sessionId" element={<AppContent />} />
+                    </Routes>
+                  </Router>
+                </ProtectedRoute>
+              </TaskMasterProvider>
+            </TasksSettingsProvider>
+          </WebSocketProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </I18nextProvider>
   );
 }
 
